@@ -161,11 +161,12 @@ def execute_ssh_command(command):
   try:
     client.connect(hostname, port, username, key_filename=private_key_path)
     stdin, stdout, stderr = client.exec_command(command)
-    print(stdin.read().decode())
-    print(stdout.read().decode())
-    print(stderr.read().decode())
+    if stderr.channel.recv_exit_status() != 0:
+      raise Execption(f"Failure executing the remote script: {stderr.read().decode()}")
+    return stdout.read().decode()
   except Execption as e:
     print(f"Error: {str(e)}")
+    return None
   finally:
     client.close()
 
@@ -228,8 +229,7 @@ class PalatialBuildServer:
 
         print("creating link")
         CreateLink = r'C:\Users\david\PythonServer\CreateLink.bat'
-        process = subprocess.Popen(f'{CreateLink} {workspace_name} {app_name}', stdout=subprocess.PIPE)
-        stdout = process.communicate()
+        stdout = execute_ssh_command(f'sudo -E python3 ~/link-deployment/run_pipeline https://{workspace_name}.palatialxr.com/{app_name} -C')
 
         app_payload = json.loads(stdout)
 
