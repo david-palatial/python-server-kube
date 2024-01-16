@@ -162,9 +162,9 @@ def execute_ssh_command(command):
     client.connect(hostname, port, username, key_filename=private_key_path)
     stdin, stdout, stderr = client.exec_command(command)
     if stderr.channel.recv_exit_status() != 0:
-      raise Execption(f"Failure executing the remote script: {stderr.read().decode()}")
+      raise Exception(f"Failure executing the remote script: {stderr.read().decode()}")
     return stdout.read().decode()
-  except Execption as e:
+  except Exception as e:
     print(f"Error: {str(e)}")
     return None
   finally:
@@ -229,9 +229,11 @@ class PalatialBuildServer:
 
         print("creating link")
         CreateLink = r'C:\Users\david\PythonServer\CreateLink.bat'
-        stdout = execute_ssh_command(f'sudo -E python3 ~/link-deployment/run_pipeline https://{workspace_name}.palatialxr.com/{app_name} -C')
+        stdout = execute_ssh_command(f'sudo -E python3 ~/link-deployment/run_pipeline.py https://{workspace_name}.palatialxr.com/{app_name} -C')
 
         app_payload = json.loads(stdout)
+
+        os.system("timeout 5")
 
         print("getting components")
         response = requests.post("https://api.palatialxr.com/v1/k8s-components", json={"name": app_name}).json()
@@ -570,6 +572,6 @@ if __name__ == '__main__':
 
     buildServer.buildProject()
     print("whoo got to the end without crashing!")
-    while True:
-        serve()
+    #while True:
+    #    serve()
 
