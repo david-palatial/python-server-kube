@@ -19,6 +19,7 @@ import PalatialWeb_pb2_grpc
 import glob
 
 from pathlib import Path
+from bson import json_util
 
 import requests
 import string
@@ -220,12 +221,11 @@ class PalatialBuildServer:
         print("test 2")
         
         workspace_name = "test"
-        app_name = generate_random_string()
+        app_name = generate_random_string().lower()
 
         print("deploying")
         Deploy = r'C:\Users\david\PythonServer\Deploy.bat'
-        process = subprocess.Popen(f'{Deploy} {app_name}')
-        process.wait()
+        subprocess.run(f'{Deploy} {app_name}')
 
         print("creating link")
         CreateLink = r'C:\Users\david\PythonServer\CreateLink.bat'
@@ -233,18 +233,17 @@ class PalatialBuildServer:
 
         app_payload = json.loads(stdout)
 
-        os.system("timeout 5")
-
         print("getting components")
         response = requests.post("https://api.palatialxr.com/v1/k8s-components", json={"name": app_name}).json()
 
-
-        updateChangelogs({
+        print("Updating change logs")
+        id = updateChangelogs({
           "event": "import complete",
           "application": app_name,
           "url": app_payload["url"],
           "podComponents": response["data"]
         })
+        print("done: ", id)
 
 
 
@@ -428,7 +427,7 @@ def logIP():
 def getMongoDB(collection):
     
    # Create a connection using MongoClient. You can import MongoClient or use pymongo.MongoClient
-   client = MongoClient("mongodb://palatial:0UDUiKxwj7fI0@mongodb.mithyalabs.com:27017/palatial?directConnection=true&authSource=staging_db")
+   client = MongoClient("mongodb://palatial.tenant-palatial-platform.coreweave.cloud:27017/palatial?directConnection=true&authSource=staging_db")
  
    # Create the database for our example (we will use the same database throughout the tutorial
    return client[collection]
@@ -446,7 +445,9 @@ def updateChangelogs(message):
       "createdAt": current_datetime.strftime("%Y-%m-%d %H:%M:%S")
     }
     payload.update(message)
-    changelogs.insert_one(payload)
+    print(json_util.dumps(payload, indent=2))
+    result = changelogs.insert_one(payload)
+    return result.inserted_id
 
 def downloadFiles(url):
     #url = "https://abad4791da6f642b2de41deee689ccaa.r2.cloudflarestorage.com/palatial-dev/uploads/projects/6564ebe00b14c666e6930bc8/"
@@ -551,7 +552,6 @@ if __name__ == '__main__':
     print("Download directory is: {0}".format(directory))
     print("Engine directory is: {0}".format(engine))
 
- 
     updateChangelogs({ "event": "processing import" })
 
     downloadFiles(url)
@@ -562,9 +562,9 @@ if __name__ == '__main__':
     importInstance = importFunctions()
     importInstance.loadLevel()
 
-    importInstance.importFiles()
-
+    importInstance.importFiles() 
     importInstance.deleteFiles()
+
     unreal.EditorLevelLibrary.save_all_dirty_levels()
 
     unreal.PalatialEditorFunctionLibrary.execute_post_import_scripts()
