@@ -8,9 +8,9 @@ if "%~1"=="" (
 
 set foo=%~1
 
-ssh david@216.153.61.115 "docker image pull registry.tenant-palatial-platform.lga1.ingress.coreweave.cloud/Scion:test"
+ssh david@216.153.61.115 "docker image pull registry.tenant-palatial-platform.lga1.ingress.coreweave.cloud/palatialunreal:test"
 
-ssh david@216.153.61.115 "docker run --detach --name data registry.tenant-palatial-platform.lga1.ingress.coreweave.cloud/Scion:test"
+ssh david@216.153.61.115 "docker run --detach --name data registry.tenant-palatial-platform.lga1.ingress.coreweave.cloud/palatialunreal:test"
 
 ssh david@216.154.51.115 "docker cp data:/data ./%foo%"
 
