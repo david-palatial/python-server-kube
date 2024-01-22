@@ -217,7 +217,15 @@ class PalatialBuildServer:
         ]
         
         # Execute the command
-        subprocess.call(arguments)
+        try:
+          subprocess.call(arguments, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+          updateChangeLogs({
+            "event": "processing FAILURE",
+            "stage": "RunUAT.bat BuildCookRun",
+            "response": e.stderr
+          })
+          
         print("test 2")
         
         workspace_name = "test"
@@ -225,7 +233,14 @@ class PalatialBuildServer:
 
         print("deploying")
         Deploy = r'C:\Users\david\PythonServer\Deploy.bat'
-        subprocess.run(f'{Deploy} {app_name}')
+        p = subprocess.run(f'{Deploy} {app_name}', stderr=subprocess.PIPE)
+
+        if p.stderr:
+          updateChangeLogs({
+            "event": "processing FAILURE",
+            "stage": "application deployment",
+            "response": p.stderr
+          })
 
         print("creating link")
         CreateLink = r'C:\Users\david\PythonServer\CreateLink.bat'
