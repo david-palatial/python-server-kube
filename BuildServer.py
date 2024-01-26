@@ -21,11 +21,18 @@ import glob
 from pathlib import Path
 from bson import json_util
 
+import shutil
 import requests
 import string
 import random
 import json
 import paramiko
+from bson import ObjectId
+import datetime
+
+import docker
+import tarfile
+    
 
 class importFunctions:
     # Define the paths
@@ -40,6 +47,25 @@ class importFunctions:
         level_system = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         if not level_system.load_level(level_path):
             level_system.new_level(level_path)
+
+    def reportError(self, projectId, msg):
+      current_datetime = datetime.datetime.now()
+
+      msg.update({
+        "createdAt": current_datetime.strftime("%Y-%m-%d %H:%M:%S")
+      })
+
+      json_payload = {
+        "text": f"Failed to process project {projectId}",
+        "icon_emoji": ":x:",
+        "custom_json": f"```json\n{msg}\n```"
+      }
+
+      payload = json.dumps(json_payload, indent=2)
+
+      webhook_url = "https://hooks.slack.com/services/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"
+      response = requests.post(webhook_url, data=payload)
+      sys.exit(0)
 
 
 
@@ -182,7 +208,7 @@ class PalatialBuildServer:
     def __init__(self):
         print("build system initialized")
 
-    def buildProject(self):
+    def buildProject(self, projectId):
         os.system(self.buildClientCommand)
 
         #os.system(self.buildServerCommand)
@@ -216,34 +242,31 @@ class PalatialBuildServer:
             f'-archivedirectory="{output_directory}"'
         ]
         
-        # Execute the command
-        try:
-          subprocess.call(arguments, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError as e:
-          updateChangeLogs({
-            "event": "processing FAILURE",
-            "stage": "RunUAT.bat BuildCookRun",
-            "response": e.stderr
+        p = subprocess.run(arguments, stderr=subprocess.PIPE)
+        if p.stderr:
+          reportError(projectId, {
+            "stage": "BuildCookRun",
+            "subjectId": projectId,
+            "response": p.stderr
           })
-          
-        print("test 2")
-        
+
         workspace_name = "test"
         app_name = generate_random_string().lower()
 
         print("deploying")
-        Deploy = r'C:\Users\david\PythonServer\Deploy.bat'
-        p = subprocess.run(f'{Deploy} {app_name}', stderr=subprocess.PIPE)
-
+        Deploy = r'C:\Users\david\PythonServer\DeployApp.bat'
+        print("app name = " + app_name, "cwd = " + os.getcwd())
+        subprocess.run(['sps-app', 'deploy', '.\Saved\StagedBuilds', '--branch', app_name, '-C'])
+        x="""
         if p.stderr:
-          updateChangeLogs({
-            "event": "processing FAILURE",
+          reportError(projectId, {
             "stage": "application deployment",
+            "subjectId": projectId,
             "response": p.stderr
           })
+        """
 
         print("creating link")
-        CreateLink = r'C:\Users\david\PythonServer\CreateLink.bat'
         stdout = execute_ssh_command(f'sudo -E python3 ~/link-deployment/run_pipeline.py https://{workspace_name}.palatialxr.com/{app_name} -C')
 
         app_payload = json.loads(stdout)
@@ -258,7 +281,17 @@ class PalatialBuildServer:
           "url": app_payload["url"],
           "podComponents": response["data"]
         })
+
         print("done: ", id)
+
+        message_data = {
+          "text": f"Project {projectId} imported sucessfully: {id}"
+        }
+
+        payload = json.dumps(message_data)
+
+        webhook_url = "https://hooks.slack.com/services/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"
+        response = requests.post(webhook_url, data=payload)
 
 
 
@@ -420,7 +453,7 @@ def serve():
 
     buildServer.CommitEdits()
 
-    buildServer.buildProject()
+    buildServer.buildProject(project_id)
 
 project_id = ""
 
@@ -448,8 +481,6 @@ def getMongoDB(collection):
    return client[collection]
 
 def updateChangelogs(message):
-    from bson import ObjectId
-    import datetime
     current_datetime = datetime.datetime.now()
     db = getMongoDB("palatial")
     changelogs = db["changelogs"]
@@ -530,7 +561,26 @@ def setProjectFolder():
 if __name__ == '__main__':
     logging.basicConfig()
 
-    os.chdir(r"C:\Users\david\Palatial_V01_UE53")
+    project_dir = r"C:\Users\david\Palatial_V01_UE53"
+
+    image_name = "registry.tenant-palatial-platform.lga1.ingress.coreweave.cloud/palatialunreal:test1"
+    data_dir = "/data" 
+    local_path = r"C:\Users\david"
+    dest_dir = "Palatial_V01_UE53"
+
+    client = docker.from_env()
+    client.images.pull(image_name)
+
+    container = client.containers.run(image_name, detach=True)
+
+    data_stream, stat = container.get_archive(data_dir)
+    with open(os.path.join(local_path, dest_dir), 'wb') as dest: 
+      shutil.unpack_archive(data_stream, dest)
+    
+    container.remove(force=True)
+
+
+    os.chdir(project_dir)
 
     url = ""
     if len(sys.argv) != 3:
@@ -585,7 +635,7 @@ if __name__ == '__main__':
     unreal.PalatialEditorFunctionLibrary.execute_post_import_scripts()
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
 
-    buildServer.buildProject()
+    buildServer.buildProject(project_id)
     print("whoo got to the end without crashing!")
     #while True:
     #    serve()
