@@ -1,0 +1,245 @@
+syntax = "proto3";
+//enable arena is needed for c++ and unreal
+option cc_enable_arenas = true;
+
+package palatialrpc;
+
+service PalatialWebCommunication {
+	
+	rpc CreateAccount (NewAccountInfo) returns (AccountResult) {}
+
+	rpc GetDashboard (UserInfo) returns (DashboardProjectsInfo) {}
+
+	rpc GetPixelStreamingLink (ProjectInfo) returns (PixelStreamingLink) {}
+
+}
+
+service PalatialServer {
+
+	rpc SendEditingCommand (EditingAction) returns (Ack) {}
+
+	rpc CommitEdits (CommitAction) returns (Ack) {}
+
+}
+
+
+//tells the python server to commit all sent changes to the build and then save and start packaging the project
+//this will spin down the grpc server to save the project and spin it back up when the packaging is complete
+//we will then make the packaged project available via pixelstreaming
+message CommitAction {
+
+	string project_id = 1;
+	bool do_commit = 2;
+
+}
+
+//the main message that will send editing actions from the pixel streaming instance to the python server
+//the project_id should be acquired from the firebase but it is hardcoded for now
+message EditingAction {
+
+	string project_id = 1;
+
+	oneof edit_action {
+		BatchDelete batch_delete_action = 2;
+		FlipNormal flip_normal_action = 3;
+		AddLight add_light_action = 4;
+		BatchLightSettings batch_light_setting_action = 5;
+		BatchTranslate batch_translate_action = 6;
+		AdjustContext adjust_context_action = 7; //cesium
+		CropContext crop_context_action = 8;  //cesium
+		Undo undo_action = 9;
+		ToggleNanite toggle_nanite_action = 10;
+		SetPlayerStart set_player_start_action = 11;
+		AddSavedView add_saved_view_action = 12;
+		SetSavedView set_saved_view_action = 13;
+		BatchReplaceMaterial batch_replace_material_action = 14;
+		PlaceContext place_context_action = 15;
+	}
+}
+
+
+//a generic location object that specifies absolute location
+message Location {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+
+}
+
+message Vector {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+}
+
+
+
+message BatchDelete {
+	message Delete {
+		string mesh_id = 1;
+	}
+	repeated Delete delete_action = 1;
+}
+
+message FlipNormal {
+	string mesh_id = 1;
+}
+
+message AddLight {
+	enum LightType {
+		POINT_LIGHT = 0;
+		SPOT_LIGHT = 1;
+		RECT_LIGHT = 2;
+	}
+	string unique_id = 1;
+	LightType type = 2;
+
+	Location location = 3;
+}
+
+message BatchLightSettings {
+
+	message LightSettings {
+		string light_id = 1;
+
+		bool enabled = 2;
+		bool cast_shadows = 3;
+
+		float intensity = 4;
+		float attenuation = 5;
+		float source_radius = 6;
+		float soft_source_radius = 7;
+		float source_length = 8;
+		float inner_cone_angle = 9;
+		float outer_cone_angle = 10;
+		float source_width = 11;
+		float source_weight = 12;
+		float barn_door_angle = 13;
+		float barn_door_length = 14;
+
+		float color_r = 15;
+		float color_g = 16;
+		float color_b = 17;
+	}
+	
+	repeated LightSettings light_setting_action = 1;
+
+}
+
+message BatchTranslate {
+	message Translate {
+		string mesh_id = 1;
+		Location location = 2;
+	}
+	repeated Translate translate = 1;
+}
+
+message AdjustContext {
+	float lat = 1;
+	float long = 2;
+	float height = 3;
+	float angle = 4;
+}
+
+
+
+message CropContext {
+	repeated Location spline_point = 1;
+}
+
+
+
+message Undo {
+	bool ack = 1;
+}
+
+
+message ToggleNanite {
+	string mesh_id = 1;
+	bool disabled = 2;
+}
+
+message SetPlayerStart {
+	string camera_id = 1;
+}
+
+message AddSavedView {
+	string unique_id = 1;
+	string name = 2;
+	Location location = 3;
+	float rotation_x = 4;
+	float rotation_y = 5;
+	float rotation_z = 6;
+}
+
+
+message SetSavedView {
+	string camera_id = 1;
+	bool enabled = 2;
+	string name = 3;
+}
+
+message BatchReplaceMaterial {
+	string old_material_path = 1;
+	string new_material_path = 2;
+
+	repeated string mesh_ids = 3;
+
+}
+
+message PlaceContext {
+	bool enabled = 1;
+}
+
+message Ack {
+	bool ack = 1;
+}
+
+message NewAccountInfo {
+
+	string username = 1;
+	string email = 2;
+	string password = 3;
+
+}
+
+message ProjectInfo {
+
+	string name = 1;
+
+	oneof thumbnail_info{
+		string thumbnail_link = 2;
+		bytes image = 3;
+	}
+
+	optional string last_edited_time = 4;
+	optional string last_edited_user = 5;
+	optional int32  num_active_users = 6;
+
+}
+
+message AccountResult {
+
+	enum AccountCreationResult{
+		FAILURE_UNSPECIFIED = 0;
+		SUCCESS = 1;
+		USERNAME_TAKEN = 2;
+	}
+
+	AccountCreationResult result = 1;
+}
+
+message UserInfo {
+	string username = 1;
+	optional string user_id = 2;
+}
+
+message DashboardProjectsInfo {
+	repeated ProjectInfo projects = 1;
+	optional bool first_time_user = 2;
+}
+
+message PixelStreamingLink {
+	string project_id = 1;
+	string pixelstreaming_link = 2;
+}

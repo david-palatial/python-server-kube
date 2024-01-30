@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-python-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-python-server
+  template:
+    metadata:
+      labels:  # Add labels for the Pod
+        app: my-python-server
+    spec:
+      containers:
+      - name: python-server-container
+        image: docker.io/dgodfrey206/scion-with-mounted-ue:v0-1-1
+        env:
+          - name: PROJECT_ID
+            value: "65344ebb14c266e693g0b212c8"
+          - name: CLOUDFLARE_R2
+            value: "https://abad4791da6f642b2de41deee689ccaa.r2.cloudflarestorage.com/palatial-dev/uploads/projects/6564ebe00b14c666e6930bc8"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: /mnt
+          name: filesystem-storage
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+            cpu: "4"
+            memory: 8Gi
+          requests:
+            nvidia.com/gpu: 1
+            cpu: "4"
+            memory: 8Gi
+      volumes:
+      - name: filesystem-storage
+        persistentVolumeClaim:
+          claimName: ue5clientstoragehub
